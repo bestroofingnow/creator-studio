@@ -85,14 +85,41 @@ export function ChatInterface() {
     addMessage({ role: "user", content: userMessage });
     setIsGenerating(true);
 
-    // Simulate AI response (replace with actual API call)
-    setTimeout(() => {
+    try {
+      // Build conversation history for context
+      const history = messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage,
+          history,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to get response");
+      }
+
       addMessage({
         role: "assistant",
-        content: `I received your message: "${userMessage}"\n\nThis is a demo response. In the full version, I would use Google's Gemini 3 Pro to generate an intelligent response based on your input.\n\nI can help you with:\n- Creating text content\n- Generating images\n- Making videos\n- Analyzing media\n- And much more!`,
+        content: data.response,
       });
+    } catch (error) {
+      console.error("Chat error:", error);
+      addMessage({
+        role: "assistant",
+        content: "Sorry, I encountered an error processing your message. Please try again.",
+      });
+    } finally {
       setIsGenerating(false);
-    }, 1500);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

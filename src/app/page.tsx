@@ -13,6 +13,7 @@ import ImageEditor from "@/components/tools/ImageEditor";
 import AudioTranscriber from "@/components/tools/AudioTranscriber";
 import SpeechGenerator from "@/components/tools/SpeechGenerator";
 import WebSearch from "@/components/tools/WebSearch";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { useAppStore, type Tool } from "@/store";
 import {
   Film,
@@ -50,55 +51,78 @@ function ComingSoon({ title, icon }: { title: string; icon: React.ReactNode }) {
   );
 }
 
-// Tool content router
+// Tool content router with auth gating
 function ToolContent({ tool }: { tool: Tool }) {
-  switch (tool) {
-    case "chat":
-      return <ChatInterface />;
-    case "image-generate":
-      return <ImageGenerator />;
-    case "image-edit":
-      return (
-        <div className="h-full overflow-auto p-4 md:p-6">
-          <ImageEditor />
-        </div>
-      );
-    case "image-analyze":
-      return (
-        <div className="h-full overflow-auto p-4 md:p-6">
-          <ImageAnalyzer />
-        </div>
-      );
-    case "video-generate":
-      return <VideoGenerator />;
-    case "video-analyze":
-      return (
-        <ComingSoon
-          title="Video Analysis"
-          icon={<Film size={48} />}
-        />
-      );
-    case "audio-transcribe":
-      return (
-        <div className="h-full overflow-auto p-4 md:p-6">
-          <AudioTranscriber />
-        </div>
-      );
-    case "speech-generate":
-      return (
-        <div className="h-full overflow-auto p-4 md:p-6">
-          <SpeechGenerator />
-        </div>
-      );
-    case "web-search":
-      return (
-        <div className="h-full overflow-auto p-4 md:p-6">
-          <WebSearch />
-        </div>
-      );
-    default:
-      return <ChatInterface />;
-  }
+  const getFeatureName = (tool: Tool): string => {
+    const names: Record<Tool, string> = {
+      "chat": "AI Chat",
+      "image-generate": "Image Generation",
+      "image-edit": "Image Editing",
+      "image-analyze": "Image Analysis",
+      "video-generate": "Video Generation",
+      "video-analyze": "Video Analysis",
+      "audio-transcribe": "Audio Transcription",
+      "speech-generate": "Speech Generation",
+      "web-search": "Web Search",
+    };
+    return names[tool] || "this feature";
+  };
+
+  const renderContent = () => {
+    switch (tool) {
+      case "chat":
+        return <ChatInterface />;
+      case "image-generate":
+        return <ImageGenerator />;
+      case "image-edit":
+        return (
+          <div className="h-full overflow-auto p-4 md:p-6">
+            <ImageEditor />
+          </div>
+        );
+      case "image-analyze":
+        return (
+          <div className="h-full overflow-auto p-4 md:p-6">
+            <ImageAnalyzer />
+          </div>
+        );
+      case "video-generate":
+        return <VideoGenerator />;
+      case "video-analyze":
+        return (
+          <ComingSoon
+            title="Video Analysis"
+            icon={<Film size={48} />}
+          />
+        );
+      case "audio-transcribe":
+        return (
+          <div className="h-full overflow-auto p-4 md:p-6">
+            <AudioTranscriber />
+          </div>
+        );
+      case "speech-generate":
+        return (
+          <div className="h-full overflow-auto p-4 md:p-6">
+            <SpeechGenerator />
+          </div>
+        );
+      case "web-search":
+        return (
+          <div className="h-full overflow-auto p-4 md:p-6">
+            <WebSearch />
+          </div>
+        );
+      default:
+        return <ChatInterface />;
+    }
+  };
+
+  return (
+    <AuthGate featureName={getFeatureName(tool)}>
+      {renderContent()}
+    </AuthGate>
+  );
 }
 
 export default function Home() {
