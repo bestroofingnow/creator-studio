@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     // Try using Veo model for video generation
     try {
       const model = genAI.getGenerativeModel({
-        model: "veo-2.0-generate-001", // Veo 2.0 model
+        model: "veo-3.0-generate-preview", // Veo 3 Pro model
       });
 
       let result;
@@ -116,14 +116,14 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     } catch (veoError) {
-      console.error("Veo generation error:", veoError);
+      console.error("Veo 3 Pro generation error:", veoError);
 
       // Return helpful error message
       return NextResponse.json(
         {
           error: "Video generation failed",
-          details: veoError instanceof Error ? veoError.message : "Veo model may not be available. Please check your API access.",
-          suggestion: "Video generation requires access to Google's Veo model. Make sure your API key has the necessary permissions."
+          details: veoError instanceof Error ? veoError.message : "Veo 3 Pro model may not be available. Please check your API access.",
+          suggestion: "Video generation requires access to Google's Veo 3 Pro model. Make sure your API key has the necessary permissions."
         },
         { status: 500 }
       );

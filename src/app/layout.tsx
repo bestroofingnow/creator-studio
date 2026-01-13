@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Creator Studio | AI-Powered Content Creation",
   description:
-    "Create stunning content with AI. Generate images, videos, audio, and text using cutting-edge Google AI models including Gemini 3 Pro, Nano Banana Pro, and Veo 3.1.",
+    "Create stunning content with AI. Generate images, videos, audio, and text using cutting-edge Google AI models including Gemini and Veo 3 Pro.",
   keywords: [
     "AI",
     "content creation",

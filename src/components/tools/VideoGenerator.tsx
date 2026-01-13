@@ -324,7 +324,7 @@ export function VideoGenerator() {
           <div className="p-4 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-2 h-2 rounded-full bg-[var(--neon-purple)] animate-pulse" />
-              <span className="text-sm font-medium">Veo 2.0</span>
+              <span className="text-sm font-medium">Veo 3 Pro</span>
             </div>
             <p className="text-xs text-[var(--foreground-muted)]">
               Google&apos;s latest video generation model. Creates
@@ -391,7 +391,7 @@ export function VideoGenerator() {
 
             <h3 className="text-xl font-semibold mb-2">Generating your video</h3>
             <p className="text-[var(--foreground-muted)] mb-6 text-center max-w-md">
-              This may take a minute. Veo 2.0 is creating your {duration}-second
+              This may take a minute. Veo 3 Pro is creating your {duration}-second
               video...
             </p>
 
@@ -499,7 +499,7 @@ export function VideoGenerator() {
               <div>
                 <h3 className="text-lg font-semibold">Generated Video</h3>
                 <p className="text-sm text-[var(--foreground-muted)]">
-                  {duration}s | Veo 2.0 | {prompt.length > 50 ? `${prompt.slice(0, 50)}...` : prompt}
+                  {duration}s | Veo 3 Pro | {prompt.length > 50 ? `${prompt.slice(0, 50)}...` : prompt}
                 </p>
               </div>
               <div className="flex gap-2">
