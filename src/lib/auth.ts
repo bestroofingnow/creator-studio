@@ -70,7 +70,7 @@ export const authOptions: NextAuthOptions = {
       if (token && session.user) {
         (session.user as any).id = token.id as string;
 
-        // Fetch fresh user data including credits
+        // Fetch fresh user data including credits and admin status
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
@@ -78,13 +78,29 @@ export const authOptions: NextAuthOptions = {
               credits: true,
               subscriptionTier: true,
               subscriptionStatus: true,
+              isAdmin: true,
+              email: true,
             },
           });
 
           if (dbUser) {
+            // Check if user email is in ADMIN_EMAILS list and auto-promote
+            const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
+            const isAdminByEmail = dbUser.email && adminEmails.includes(dbUser.email.toLowerCase());
+
+            // If user should be admin but isn't, update the database
+            if (isAdminByEmail && !dbUser.isAdmin) {
+              await prisma.user.update({
+                where: { id: token.id as string },
+                data: { isAdmin: true },
+              });
+              dbUser.isAdmin = true;
+            }
+
             (session.user as any).credits = dbUser.credits;
             (session.user as any).subscriptionTier = dbUser.subscriptionTier;
             (session.user as any).subscriptionStatus = dbUser.subscriptionStatus;
+            (session.user as any).isAdmin = dbUser.isAdmin || isAdminByEmail;
           }
         } catch (error) {
           console.error("Failed to fetch user data:", error);
@@ -110,6 +126,7 @@ declare module "next-auth" {
       credits?: number;
       subscriptionTier?: string | null;
       subscriptionStatus?: string | null;
+      isAdmin?: boolean;
     };
   }
 }

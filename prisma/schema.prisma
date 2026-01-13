@@ -42,6 +42,9 @@ model User {
   image                String?
   password             String?
 
+  // Admin flag - bypasses credit checks
+  isAdmin              Boolean   @default(false)
+
   // Subscription & Credits
   credits              Int       @default(0)
   subscriptionTier     String?   @default("free")

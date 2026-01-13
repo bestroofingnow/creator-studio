@@ -5,6 +5,7 @@ export interface CreditCheckResult {
   hasEnoughCredits: boolean;
   currentCredits: number;
   required: number;
+  isAdmin: boolean;
 }
 
 export async function checkCredits(
@@ -13,16 +14,27 @@ export async function checkCredits(
 ): Promise<CreditCheckResult> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { credits: true },
+    select: { credits: true, isAdmin: true },
   });
 
   const currentCredits = user?.credits || 0;
+  const isAdmin = user?.isAdmin || false;
 
   return {
-    hasEnoughCredits: currentCredits >= required,
+    // Admins always have enough credits
+    hasEnoughCredits: isAdmin || currentCredits >= required,
     currentCredits,
     required,
+    isAdmin,
   };
+}
+
+export async function isUserAdmin(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isAdmin: true },
+  });
+  return user?.isAdmin || false;
 }
 
 export async function deductCredits(
@@ -31,18 +43,35 @@ export async function deductCredits(
   tool: string,
   description?: string,
   metadata?: Prisma.InputJsonValue
-): Promise<{ success: boolean; newBalance: number; error?: string }> {
+): Promise<{ success: boolean; newBalance: number; error?: string; isAdmin?: boolean }> {
   try {
     // Use a transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {
-      // Get current user credits
+      // Get current user credits and admin status
       const user = await tx.user.findUnique({
         where: { id: userId },
-        select: { credits: true },
+        select: { credits: true, isAdmin: true },
       });
 
       if (!user) {
         throw new Error("User not found");
+      }
+
+      // Admin users don't have credits deducted but usage is still logged
+      if (user.isAdmin) {
+        // Log admin usage without deducting
+        await tx.creditTransaction.create({
+          data: {
+            userId,
+            amount: 0, // No deduction for admin
+            balance: user.credits,
+            type: "admin_usage",
+            tool,
+            description: description || `Admin used ${tool}`,
+            metadata: metadata ?? Prisma.JsonNull,
+          },
+        });
+        return { balance: user.credits, isAdmin: true };
       }
 
       if (user.credits < amount) {
@@ -70,10 +99,10 @@ export async function deductCredits(
         },
       });
 
-      return newBalance;
+      return { balance: newBalance, isAdmin: false };
     });
 
-    return { success: true, newBalance: result };
+    return { success: true, newBalance: result.balance, isAdmin: result.isAdmin };
   } catch (error) {
     return {
       success: false,
