@@ -1,18 +1,19 @@
-import NextAuth from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import Google from "next-auth/providers/google";
-import Credentials from "next-auth/providers/credentials";
+import type { Adapter } from "next-auth/adapters";
+import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
-    Credentials({
+    CredentialsProvider({
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -67,22 +68,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.id as string;
+        (session.user as any).id = token.id as string;
 
         // Fetch fresh user data including credits
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: {
-            credits: true,
-            subscriptionTier: true,
-            subscriptionStatus: true,
-          },
-        });
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: {
+              credits: true,
+              subscriptionTier: true,
+              subscriptionStatus: true,
+            },
+          });
 
-        if (dbUser) {
-          session.user.credits = dbUser.credits;
-          session.user.subscriptionTier = dbUser.subscriptionTier;
-          session.user.subscriptionStatus = dbUser.subscriptionStatus;
+          if (dbUser) {
+            (session.user as any).credits = dbUser.credits;
+            (session.user as any).subscriptionTier = dbUser.subscriptionTier;
+            (session.user as any).subscriptionStatus = dbUser.subscriptionStatus;
+          }
+        } catch (error) {
+          console.error("Failed to fetch user data:", error);
         }
       }
       return session;
@@ -92,7 +97,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/login",
     error: "/login",
   },
-});
+};
 
 // Type extensions for session
 declare module "next-auth" {

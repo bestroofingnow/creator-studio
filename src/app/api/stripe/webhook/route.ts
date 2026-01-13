@@ -124,12 +124,15 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
                  subscription.status === "past_due" ? "past_due" :
                  subscription.status === "canceled" ? "canceled" : "inactive";
 
+  // Get current_period_end safely
+  const periodEnd = (subscription as unknown as { current_period_end?: number }).current_period_end;
+
   await prisma.user.update({
     where: { stripeCustomerId: subscription.customer as string },
     data: {
       subscriptionTier: tier,
       subscriptionStatus: status,
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
     },
   });
 }
@@ -148,11 +151,14 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
   // This is called for recurring payments (monthly billing)
-  if (!invoice.subscription) return;
+  const subscriptionId = (invoice as unknown as { subscription?: string | null }).subscription;
+  if (!subscriptionId) return;
 
-  const subscription = await stripe.subscriptions.retrieve(
-    invoice.subscription as string
-  );
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+  // Get current_period_end safely
+  const periodEnd = (subscription as unknown as { current_period_end?: number }).current_period_end;
+  const periodEndDate = periodEnd ? new Date(periodEnd * 1000) : null;
 
   const userId = subscription.metadata?.userId;
   if (!userId) {
@@ -172,7 +178,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
       where: { id: user.id },
       data: {
         credits: credits,
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        currentPeriodEnd: periodEndDate,
       },
     });
 
@@ -196,7 +202,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
     where: { id: userId },
     data: {
       credits: credits,
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      currentPeriodEnd: periodEndDate,
     },
   });
 

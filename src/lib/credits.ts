@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { Prisma } from "@prisma/client";
 
 export interface CreditCheckResult {
   hasEnoughCredits: boolean;
@@ -29,7 +30,7 @@ export async function deductCredits(
   amount: number,
   tool: string,
   description?: string,
-  metadata?: Record<string, unknown>
+  metadata?: Prisma.InputJsonValue
 ): Promise<{ success: boolean; newBalance: number; error?: string }> {
   try {
     // Use a transaction to ensure atomicity
@@ -65,7 +66,7 @@ export async function deductCredits(
           type: "deduction",
           tool,
           description: description || `Used ${tool}`,
-          metadata: metadata || {},
+          metadata: metadata ?? Prisma.JsonNull,
         },
       });
 
@@ -87,7 +88,7 @@ export async function addCredits(
   amount: number,
   type: "subscription_credit" | "bonus" | "refund" | "purchase",
   description?: string,
-  metadata?: Record<string, unknown>
+  metadata?: Prisma.InputJsonValue
 ): Promise<{ success: boolean; newBalance: number; error?: string }> {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -114,7 +115,7 @@ export async function addCredits(
           balance: newBalance,
           type,
           description: description || `Added ${amount} credits`,
-          metadata: metadata || {},
+          metadata: metadata ?? Prisma.JsonNull,
         },
       });
 

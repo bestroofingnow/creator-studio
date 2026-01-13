@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -31,7 +31,7 @@ const tierConfig: Record<string, { name: string; icon: React.ReactNode; color: s
   business: { name: "Business", icon: <Crown className="w-5 h-5" />, color: "pink", credits: 500000 },
 };
 
-export default function AccountPage() {
+function AccountContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -271,5 +271,19 @@ export default function AccountPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--neon-cyan)]" />
+        </div>
+      }
+    >
+      <AccountContent />
+    </Suspense>
   );
 }

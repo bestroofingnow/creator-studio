@@ -1,5 +1,6 @@
-import { auth } from "@/lib/auth";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 // Protected API routes that require authentication
 const protectedApiRoutes = [
@@ -23,7 +24,7 @@ const publicRoutes = [
   "/api/stripe/webhook",
 ];
 
-export default auth((req) => {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow public routes
@@ -36,19 +37,21 @@ export default auth((req) => {
     pathname.startsWith(route)
   );
 
-  if (isProtectedApi && !req.auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isProtectedApi) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   // Allow all other requests
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: [
     // Match API routes
     "/api/:path*",
-    // Exclude static files and images
-    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
