@@ -146,10 +146,10 @@ export function ImageGenerator() {
   };
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col md:flex-row">
       {/* Left Panel - Controls */}
-      <div className="w-[400px] border-r border-white/5 flex flex-col">
-        <div className="p-6 flex-1 overflow-y-auto space-y-6">
+      <div className="w-full md:w-[400px] border-b md:border-b-0 md:border-r border-white/5 flex flex-col">
+        <div className="p-4 md:p-6 flex-1 overflow-y-auto space-y-4 md:space-y-6">
           {/* Error Display */}
           <AnimatePresence>
             {error && (
@@ -189,7 +189,7 @@ export function ImageGenerator() {
             <label className="text-sm font-medium text-[var(--foreground-muted)]">
               Aspect Ratio
             </label>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
               {aspectRatios.map((ratio) => (
                 <motion.button
                   key={ratio.value}
@@ -341,7 +341,7 @@ export function ImageGenerator() {
       </div>
 
       {/* Right Panel - Preview */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
         {generatedImages.length === 0 && !isGenerating ? (
           <div className="h-full flex flex-col items-center justify-center text-center">
             <motion.div

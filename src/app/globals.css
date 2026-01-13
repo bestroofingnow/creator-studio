@@ -736,3 +736,79 @@ body::after {
   background: rgba(0, 240, 255, 0.3);
   color: var(--foreground);
 }
+
+/* ============================================
+   MOBILE OPTIMIZATIONS
+   ============================================ */
+
+/* Safe area support for iOS */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+/* Touch optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Larger touch targets on mobile */
+  .btn-primary,
+  .btn-secondary,
+  button {
+    min-height: 44px;
+  }
+
+  /* Disable hover effects on touch devices */
+  .sidebar-item:hover,
+  .glass-card:hover {
+    transform: none;
+    border-color: inherit;
+  }
+
+  /* Faster animations on mobile */
+  * {
+    transition-duration: 150ms !important;
+  }
+}
+
+/* Mobile-specific styles */
+@media (max-width: 767px) {
+  /* Smaller text on mobile */
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.125rem; }
+
+  /* Full-width buttons on mobile */
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Adjust glass card padding */
+  .glass-card {
+    padding: 1rem;
+  }
+
+  /* Hide scrollbars on mobile for cleaner look */
+  *::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
+  }
+
+  /* Reduce animations for performance */
+  .animate-float,
+  .animate-pulse {
+    animation: none;
+  }
+}
+
+/* Landscape mobile adjustments */
+@media (max-width: 767px) and (orientation: landscape) {
+  .h-\[100dvh\] {
+    height: 100vh;
+  }
+}

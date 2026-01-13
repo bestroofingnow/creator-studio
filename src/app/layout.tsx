@@ -25,6 +25,19 @@ export const metadata: Metadata = {
     "Gemini",
     "Veo",
   ],
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    viewportFit: "cover",
+  },
+  themeColor: "#0a0a0a",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Creator Studio",
+  },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
