@@ -9,11 +9,13 @@ import {
   RefreshCw,
   Maximize2,
   Settings2,
-  Sparkles,
   Image as ImageIcon,
   Loader2,
   ChevronDown,
   Zap,
+  AlertCircle,
+  Check,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
@@ -28,13 +30,13 @@ const aspectRatios = [
 
 const styles = [
   { label: "Photorealistic", value: "photorealistic" },
-  { label: "Digital Art", value: "digital-art" },
+  { label: "Digital Art", value: "digital art" },
   { label: "Anime", value: "anime" },
-  { label: "Oil Painting", value: "oil-painting" },
+  { label: "Oil Painting", value: "oil painting" },
   { label: "Watercolor", value: "watercolor" },
-  { label: "3D Render", value: "3d-render" },
-  { label: "Sketch", value: "sketch" },
-  { label: "Cyberpunk", value: "cyberpunk" },
+  { label: "3D Render", value: "3D render" },
+  { label: "Sketch", value: "pencil sketch" },
+  { label: "Cyberpunk", value: "cyberpunk neon" },
 ];
 
 export function ImageGenerator() {
@@ -42,35 +44,105 @@ export function ImageGenerator() {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [style, setStyle] = useState("photorealistic");
+  const [numberOfImages, setNumberOfImages] = useState(4);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const { credits, useCredits } = useAppStore();
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
 
-    // Check credits
-    if (credits < 600) {
-      alert("Not enough credits! Image generation costs 600 credits.");
+    const totalCost = numberOfImages * 600;
+    if (credits < totalCost) {
+      setError(`Not enough credits! You need ${totalCost} credits.`);
       return;
     }
 
     setIsGenerating(true);
-    useCredits(600);
+    setError(null);
+    setGeneratedImages([]);
 
-    // Simulate generation (replace with actual API call)
-    setTimeout(() => {
-      // Add placeholder images for demo
-      setGeneratedImages([
-        "https://picsum.photos/seed/ai1/512/512",
-        "https://picsum.photos/seed/ai2/512/512",
-        "https://picsum.photos/seed/ai3/512/512",
-        "https://picsum.photos/seed/ai4/512/512",
-      ]);
+    try {
+      const response = await fetch("/api/generate/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          aspectRatio,
+          style,
+          numberOfImages,
+          negativePrompt,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate images");
+      }
+
+      if (data.images && data.images.length > 0) {
+        setGeneratedImages(data.images);
+        useCredits(data.creditsUsed || totalCost);
+      } else {
+        throw new Error("No images were generated");
+      }
+    } catch (err) {
+      console.error("Generation error:", err);
+      setError(err instanceof Error ? err.message : "Failed to generate images");
+    } finally {
       setIsGenerating(false);
-    }, 3000);
+    }
+  };
+
+  const handleDownload = async (imageUrl: string, index: number) => {
+    try {
+      // For base64 images
+      if (imageUrl.startsWith("data:")) {
+        const link = document.createElement("a");
+        link.href = imageUrl;
+        link.download = `generated-image-${index + 1}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // For URL images
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `generated-image-${index + 1}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error("Download error:", err);
+    }
+  };
+
+  const handleCopy = async (imageUrl: string, index: number) => {
+    try {
+      if (imageUrl.startsWith("data:")) {
+        // Convert base64 to blob
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        await navigator.clipboard.write([
+          new ClipboardItem({ [blob.type]: blob }),
+        ]);
+      }
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch (err) {
+      console.error("Copy error:", err);
+    }
   };
 
   return (
@@ -78,6 +150,26 @@ export function ImageGenerator() {
       {/* Left Panel - Controls */}
       <div className="w-[400px] border-r border-white/5 flex flex-col">
         <div className="p-6 flex-1 overflow-y-auto space-y-6">
+          {/* Error Display */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-3"
+              >
+                <AlertCircle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-red-400">{error}</p>
+                </div>
+                <button onClick={() => setError(null)}>
+                  <X size={16} className="text-red-400" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Prompt Input */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-[var(--foreground-muted)]">
@@ -186,7 +278,13 @@ export function ImageGenerator() {
                       {[1, 2, 4].map((num) => (
                         <button
                           key={num}
-                          className="flex-1 p-2 rounded-lg border border-white/10 hover:border-[var(--neon-cyan)] text-sm transition-colors"
+                          onClick={() => setNumberOfImages(num)}
+                          className={cn(
+                            "flex-1 p-2 rounded-lg border text-sm transition-colors",
+                            numberOfImages === num
+                              ? "border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]"
+                              : "border-white/10 hover:border-[var(--neon-cyan)]"
+                          )}
                         >
                           {num}
                         </button>
@@ -196,6 +294,18 @@ export function ImageGenerator() {
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+
+          {/* Model Info */}
+          <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-[var(--neon-cyan)] animate-pulse" />
+              <span className="text-sm font-medium">Imagen 3</span>
+            </div>
+            <p className="text-xs text-[var(--foreground-muted)]">
+              Google&apos;s latest image generation model. Creates high-quality,
+              detailed images from text descriptions.
+            </p>
           </div>
         </div>
 
@@ -222,7 +332,7 @@ export function ImageGenerator() {
                 <span>Generate Image</span>
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/20 text-xs">
                   <Zap size={12} />
-                  600
+                  {numberOfImages * 600}
                 </span>
               </>
             )}
@@ -232,7 +342,7 @@ export function ImageGenerator() {
 
       {/* Right Panel - Preview */}
       <div className="flex-1 p-6 overflow-y-auto">
-        {generatedImages.length === 0 ? (
+        {generatedImages.length === 0 && !isGenerating ? (
           <div className="h-full flex flex-col items-center justify-center text-center">
             <motion.div
               className="w-32 h-32 rounded-3xl bg-gradient-to-br from-[var(--neon-cyan)]/10 to-[var(--neon-purple)]/10 flex items-center justify-center mb-6 border border-white/5"
@@ -281,7 +391,7 @@ export function ImageGenerator() {
               <div>
                 <h3 className="text-lg font-semibold">Generated Images</h3>
                 <p className="text-sm text-[var(--foreground-muted)]">
-                  {prompt.slice(0, 50)}...
+                  {prompt.length > 50 ? `${prompt.slice(0, 50)}...` : prompt}
                 </p>
               </div>
               <motion.button
@@ -291,79 +401,128 @@ export function ImageGenerator() {
                 disabled={isGenerating}
                 className="btn-secondary flex items-center gap-2"
               >
-                <RefreshCw size={16} />
+                <RefreshCw size={16} className={isGenerating ? "animate-spin" : ""} />
                 Regenerate
               </motion.button>
             </div>
 
             {/* Image Grid */}
-            {isGenerating ? (
-              <div className="grid grid-cols-2 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="aspect-square rounded-2xl bg-white/5 flex items-center justify-center overflow-hidden"
-                  >
-                    <div className="shimmer w-full h-full" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {generatedImages.map((img, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group relative aspect-square rounded-2xl overflow-hidden border border-white/10 hover:border-[var(--neon-cyan)]/30 transition-colors"
-                  >
-                    <img
-                      src={img}
-                      alt={`Generated ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
+            <div className={cn(
+              "grid gap-4",
+              numberOfImages === 1 ? "grid-cols-1 max-w-xl mx-auto" : "grid-cols-2"
+            )}>
+              {isGenerating
+                ? Array.from({ length: numberOfImages }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="aspect-square rounded-2xl bg-white/5 flex items-center justify-center overflow-hidden relative"
+                    >
+                      <div className="absolute inset-0 shimmer" />
+                      <Loader2 size={32} className="animate-spin text-[var(--neon-cyan)]" />
+                    </div>
+                  ))
+                : generatedImages.map((img, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="group relative aspect-square rounded-2xl overflow-hidden border border-white/10 hover:border-[var(--neon-cyan)]/30 transition-colors cursor-pointer"
+                      onClick={() => setSelectedImage(img)}
+                    >
+                      <img
+                        src={img}
+                        alt={`Generated ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
 
-                    {/* Overlay Actions */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                        <div className="flex gap-2">
+                      {/* Overlay Actions */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                          <div className="flex gap-2">
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownload(img, index);
+                              }}
+                              className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+                            >
+                              <Download size={18} />
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopy(img, index);
+                              }}
+                              className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+                            >
+                              {copiedIndex === index ? (
+                                <Check size={18} className="text-[var(--neon-green)]" />
+                              ) : (
+                                <Copy size={18} />
+                              )}
+                            </motion.button>
+                          </div>
                           <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedImage(img);
+                            }}
                             className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
                           >
-                            <Download size={18} />
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
-                          >
-                            <Copy size={18} />
+                            <Maximize2 size={18} />
                           </motion.button>
                         </div>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
-                        >
-                          <Maximize2 size={18} />
-                        </motion.button>
                       </div>
-                    </div>
 
-                    {/* Selection Indicator */}
-                    <div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm text-xs">
-                      {index + 1}/4
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
+                      {/* Selection Indicator */}
+                      <div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm text-xs">
+                        {index + 1}/{generatedImages.length}
+                      </div>
+                    </motion.div>
+                  ))}
+            </div>
           </div>
         )}
       </div>
+
+      {/* Fullscreen Image Modal */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-8"
+            onClick={() => setSelectedImage(null)}
+          >
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="absolute top-4 right-4 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+              onClick={() => setSelectedImage(null)}
+            >
+              <X size={24} />
+            </motion.button>
+            <motion.img
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              src={selectedImage}
+              alt="Full size"
+              className="max-w-full max-h-full rounded-2xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

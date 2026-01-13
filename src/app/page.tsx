@@ -6,15 +6,15 @@ import { Header } from "@/components/layout/Header";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { ImageGenerator } from "@/components/tools/ImageGenerator";
 import { VideoGenerator } from "@/components/tools/VideoGenerator";
+import ImageAnalyzer from "@/components/tools/ImageAnalyzer";
+import ImageEditor from "@/components/tools/ImageEditor";
+import AudioTranscriber from "@/components/tools/AudioTranscriber";
+import SpeechGenerator from "@/components/tools/SpeechGenerator";
+import WebSearch from "@/components/tools/WebSearch";
 import { useAppStore, type Tool } from "@/store";
 import {
-  ScanEye,
   Film,
-  Mic,
-  Volume2,
-  Globe,
   Construction,
-  Sparkles,
 } from "lucide-react";
 
 // Placeholder component for tools not yet implemented
@@ -55,17 +55,15 @@ function ToolContent({ tool }: { tool: Tool }) {
       return <ImageGenerator />;
     case "image-edit":
       return (
-        <ComingSoon
-          title="Image Editing"
-          icon={<Sparkles size={48} />}
-        />
+        <div className="h-full overflow-auto p-6">
+          <ImageEditor />
+        </div>
       );
     case "image-analyze":
       return (
-        <ComingSoon
-          title="Image Analysis"
-          icon={<ScanEye size={48} />}
-        />
+        <div className="h-full overflow-auto p-6">
+          <ImageAnalyzer />
+        </div>
       );
     case "video-generate":
       return <VideoGenerator />;
@@ -78,24 +76,21 @@ function ToolContent({ tool }: { tool: Tool }) {
       );
     case "audio-transcribe":
       return (
-        <ComingSoon
-          title="Audio Transcription"
-          icon={<Mic size={48} />}
-        />
+        <div className="h-full overflow-auto p-6">
+          <AudioTranscriber />
+        </div>
       );
     case "speech-generate":
       return (
-        <ComingSoon
-          title="Speech Generation"
-          icon={<Volume2 size={48} />}
-        />
+        <div className="h-full overflow-auto p-6">
+          <SpeechGenerator />
+        </div>
       );
     case "web-search":
       return (
-        <ComingSoon
-          title="Web Search"
-          icon={<Globe size={48} />}
-        />
+        <div className="h-full overflow-auto p-6">
+          <WebSearch />
+        </div>
       );
     default:
       return <ChatInterface />;

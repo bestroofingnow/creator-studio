@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Video,
-  Play,
-  Pause,
   Download,
   RefreshCw,
   Loader2,
@@ -14,6 +12,8 @@ import {
   Clock,
   Film,
   Sparkles,
+  AlertCircle,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
@@ -47,9 +47,10 @@ export function VideoGenerator() {
   const [duration, setDuration] = useState(8);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const { credits, useCredits } = useAppStore();
 
@@ -57,37 +58,108 @@ export function VideoGenerator() {
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
+    if (mode === "image-to-video" && !uploadedImage) return;
 
     const requiredCredits = selectedDuration?.credits || 6000;
     if (credits < requiredCredits) {
-      alert(`Not enough credits! This video costs ${requiredCredits} credits.`);
+      setError(`Not enough credits! This video costs ${requiredCredits} credits.`);
       return;
     }
 
     setIsGenerating(true);
     setProgress(0);
-    useCredits(requiredCredits);
+    setError(null);
+    setGeneratedVideo(null);
 
-    // Simulate progress
-    const interval = setInterval(() => {
+    // Progress simulation for UX
+    const progressInterval = setInterval(() => {
       setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + Math.random() * 15;
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 10;
       });
-    }, 500);
+    }, 1000);
 
-    // Simulate generation
-    setTimeout(() => {
-      clearInterval(interval);
-      setProgress(100);
-      setGeneratedVideo(
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-      );
+    try {
+      // Prepare image data if in image-to-video mode
+      let imageData = null;
+      if (mode === "image-to-video" && uploadedImage) {
+        imageData = uploadedImage;
+      }
+
+      const response = await fetch("/api/generate/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          duration,
+          aspectRatio: "16:9",
+          mode,
+          imageData,
+        }),
+      });
+
+      const data = await response.json();
+
+      clearInterval(progressInterval);
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || "Failed to generate video");
+      }
+
+      if (data.videoUrl) {
+        setGeneratedVideo(data.videoUrl);
+        useCredits(data.creditsUsed || requiredCredits);
+        setProgress(100);
+      } else {
+        throw new Error("No video was generated");
+      }
+    } catch (err) {
+      clearInterval(progressInterval);
+      console.error("Video generation error:", err);
+      setError(err instanceof Error ? err.message : "Failed to generate video");
+      setProgress(0);
+    } finally {
       setIsGenerating(false);
-    }, 5000);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!generatedVideo) return;
+
+    try {
+      if (generatedVideo.startsWith("data:")) {
+        const link = document.createElement("a");
+        link.href = generatedVideo;
+        link.download = `generated-video-${Date.now()}.mp4`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const response = await fetch(generatedVideo);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `generated-video-${Date.now()}.mp4`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error("Download error:", err);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -95,6 +167,26 @@ export function VideoGenerator() {
       {/* Left Panel - Controls */}
       <div className="w-[400px] border-r border-white/5 flex flex-col">
         <div className="p-6 flex-1 overflow-y-auto space-y-6">
+          {/* Error Display */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-3"
+              >
+                <AlertCircle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-red-400">{error}</p>
+                </div>
+                <button onClick={() => setError(null)}>
+                  <X size={16} className="text-red-400" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Mode Selection */}
           <div className="space-y-3">
             <label className="text-sm font-medium text-[var(--foreground-muted)]">
@@ -150,7 +242,7 @@ export function VideoGenerator() {
                     onClick={() => setUploadedImage(null)}
                     className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 backdrop-blur-sm hover:bg-black/70 transition-colors"
                   >
-                    <RefreshCw size={14} />
+                    <X size={14} />
                   </button>
                 </div>
               ) : (
@@ -169,12 +261,7 @@ export function VideoGenerator() {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setUploadedImage(URL.createObjectURL(file));
-                      }
-                    }}
+                    onChange={handleImageUpload}
                   />
                 </motion.label>
               )}
@@ -237,7 +324,7 @@ export function VideoGenerator() {
           <div className="p-4 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-2 h-2 rounded-full bg-[var(--neon-purple)] animate-pulse" />
-              <span className="text-sm font-medium">Veo 3.1</span>
+              <span className="text-sm font-medium">Veo 2.0</span>
             </div>
             <p className="text-xs text-[var(--foreground-muted)]">
               Google&apos;s latest video generation model. Creates
@@ -304,7 +391,7 @@ export function VideoGenerator() {
 
             <h3 className="text-xl font-semibold mb-2">Generating your video</h3>
             <p className="text-[var(--foreground-muted)] mb-6 text-center max-w-md">
-              This may take a minute. Veo 3.1 is creating your {duration}-second
+              This may take a minute. Veo 2.0 is creating your {duration}-second
               video...
             </p>
 
@@ -398,12 +485,12 @@ export function VideoGenerator() {
             {/* Video Player */}
             <div className="relative aspect-video rounded-2xl overflow-hidden bg-black border border-white/10">
               <video
+                ref={videoRef}
                 src={generatedVideo}
                 className="w-full h-full object-contain"
                 controls
                 autoPlay
                 loop
-                muted
               />
             </div>
 
@@ -412,7 +499,7 @@ export function VideoGenerator() {
               <div>
                 <h3 className="text-lg font-semibold">Generated Video</h3>
                 <p className="text-sm text-[var(--foreground-muted)]">
-                  {duration}s • Veo 3.1 • {prompt.slice(0, 50)}...
+                  {duration}s | Veo 2.0 | {prompt.length > 50 ? `${prompt.slice(0, 50)}...` : prompt}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -428,6 +515,7 @@ export function VideoGenerator() {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
+                  onClick={handleDownload}
                   className="btn-primary flex items-center gap-2"
                 >
                   <Download size={16} />
