@@ -40,6 +40,8 @@ export default function SpeechGenerator() {
 
   // Load browser voices
   useEffect(() => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
     const loadVoices = () => {
       const available = window.speechSynthesis?.getVoices() || [];
       setBrowserVoices(available);
@@ -50,14 +52,10 @@ export default function SpeechGenerator() {
     };
 
     loadVoices();
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
+    window.speechSynthesis.onvoiceschanged = loadVoices;
 
     return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
+      window.speechSynthesis.cancel();
     };
   }, [selectedBrowserVoice]);
 
