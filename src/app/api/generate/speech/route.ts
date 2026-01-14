@@ -1,10 +1,18 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { checkCredits, deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 export const maxDuration = 60; // 1 minute for speech generation
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { text, voice = "Kore", speed = 1.0, pitch = 0 } = await request.json();
 
     if (!text) {
@@ -13,6 +21,18 @@ export async function POST(request: NextRequest) {
 
     if (text.length > 5000) {
       return NextResponse.json({ error: "Text is too long. Maximum 5000 characters." }, { status: 400 });
+    }
+
+    // Calculate credits based on text length (per 1K characters)
+    const requiredCredits = Math.ceil((text.length / 1000) * CREDIT_COSTS["speech-generate"]);
+
+    // Check credits before processing
+    const creditCheck = await checkCredits(session.user.id, requiredCredits);
+    if (!creditCheck.hasEnoughCredits) {
+      return NextResponse.json(
+        { error: "Insufficient credits", required: requiredCredits, current: creditCheck.currentCredits },
+        { status: 402 }
+      );
     }
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -60,71 +80,50 @@ export async function POST(request: NextRequest) {
             const anyPart = part as any;
             if (anyPart.inlineData && anyPart.inlineData.mimeType?.startsWith("audio/")) {
               const audioData = `data:${anyPart.inlineData.mimeType};base64,${anyPart.inlineData.data}`;
+
+              // Deduct credits after successful generation
+              const deductResult = await deductCredits(
+                session.user.id,
+                requiredCredits,
+                "speech-generation",
+                `Generated speech: ${text.substring(0, 50)}...`
+              );
+
+              if (!deductResult.success && !deductResult.isAdmin) {
+                console.error("Failed to deduct credits:", deductResult.error);
+              }
+
               return NextResponse.json({
                 audioUrl: audioData,
                 text,
                 voice,
-                creditsUsed: Math.ceil(text.length * 0.1),
+                creditsUsed: requiredCredits,
+                newBalance: deductResult.newBalance,
               });
             }
           }
         }
       }
 
-      // If the TTS model didn't work, return helpful message
-      return NextResponse.json(
-        {
-          error: "Speech generation did not return audio",
-          details: "The TTS model may not be available for your API key.",
-          suggestion: "Try updating your API key permissions or check if TTS is supported in your region.",
-        },
-        { status: 500 }
-      );
+      // If the TTS model didn't work, return with browser TTS option
+      return NextResponse.json({
+        useBrowserTTS: true,
+        text,
+        voice,
+        message: "Server TTS not available. Using browser text-to-speech instead.",
+        creditsUsed: 0,
+      });
     } catch (ttsError) {
       console.error("TTS generation error:", ttsError);
 
-      // Try alternative: Use Gemini 2.0 Flash experimental with audio
-      try {
-        const fallbackModel = genAI.getGenerativeModel({
-          model: "gemini-2.0-flash",
-        });
-
-        // For fallback, we'll generate speech-like text that can guide users
-        const result = await fallbackModel.generateContent({
-          contents: [{
-            role: "user",
-            parts: [{
-              text: `Convert this text to phonetic speech notation that a text-to-speech system could use. Text: "${text}"
-
-              Provide the text formatted for natural reading with pauses and emphasis marked.`
-            }],
-          }],
-        });
-
-        const response = result.response;
-
-        // Since we couldn't generate actual audio, return a helpful message
-        return NextResponse.json(
-          {
-            error: "Speech synthesis not available",
-            details: "The Google AI TTS model requires specific API access. You can use browser-based TTS as an alternative.",
-            textForTTS: text,
-            suggestion: "Enable browser TTS in the component to hear the text spoken.",
-          },
-          { status: 503 }
-        );
-      } catch (fallbackError) {
-        console.error("Fallback also failed:", fallbackError);
-      }
-
-      return NextResponse.json(
-        {
-          error: "Speech generation failed",
-          details: ttsError instanceof Error ? ttsError.message : "Unknown error",
-          suggestion: "Google AI TTS requires specific API access. Check your API key permissions.",
-        },
-        { status: 500 }
-      );
+      // Return with browser TTS fallback - no credits charged for fallback
+      return NextResponse.json({
+        useBrowserTTS: true,
+        text,
+        voice,
+        message: "Server TTS not available. Using browser text-to-speech instead.",
+        creditsUsed: 0,
+      });
     }
   } catch (error) {
     console.error("Speech generation error:", error);

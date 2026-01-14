@@ -1,12 +1,29 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { checkCredits, deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { imageData, prompt = "Analyze this image in detail. Describe what you see, the style, colors, composition, and any notable elements." } = await request.json();
 
     if (!imageData) {
       return NextResponse.json({ error: "Image data is required" }, { status: 400 });
+    }
+
+    // Check credits before processing
+    const creditCheck = await checkCredits(session.user.id, CREDIT_COSTS["image-analyze"]);
+    if (!creditCheck.hasEnoughCredits) {
+      return NextResponse.json(
+        { error: "Insufficient credits", required: CREDIT_COSTS["image-analyze"], current: creditCheck.currentCredits },
+        { status: 402 }
+      );
     }
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -58,13 +75,32 @@ export async function POST(request: NextRequest) {
     const response = result.response;
     const analysis = response.text();
 
+    // Calculate actual credits used
+    const creditsUsed = Math.max(
+      CREDIT_COSTS["image-analyze"],
+      Math.ceil(
+        ((response.usageMetadata?.promptTokenCount || 0) * 0.01) +
+        ((response.usageMetadata?.candidatesTokenCount || 0) * 0.03)
+      )
+    );
+
+    // Deduct credits after successful analysis
+    const deductResult = await deductCredits(
+      session.user.id,
+      creditsUsed,
+      "image-analysis",
+      `Analyzed image: ${prompt.substring(0, 50)}...`
+    );
+
+    if (!deductResult.success && !deductResult.isAdmin) {
+      console.error("Failed to deduct credits:", deductResult.error);
+    }
+
     return NextResponse.json({
       analysis,
       prompt,
-      creditsUsed: Math.ceil(
-        ((response.usageMetadata?.promptTokenCount || 0) * 0.01) +
-        ((response.usageMetadata?.candidatesTokenCount || 0) * 0.03)
-      ),
+      creditsUsed,
+      newBalance: deductResult.newBalance,
     });
   } catch (error) {
     console.error("Image analysis error:", error);

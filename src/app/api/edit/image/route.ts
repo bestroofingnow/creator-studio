@@ -1,8 +1,16 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { checkCredits, deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { imageData, editPrompt, editType = "general" } = await request.json();
 
     if (!imageData) {
@@ -11,6 +19,15 @@ export async function POST(request: NextRequest) {
 
     if (!editPrompt) {
       return NextResponse.json({ error: "Edit prompt is required" }, { status: 400 });
+    }
+
+    // Check credits before processing
+    const creditCheck = await checkCredits(session.user.id, CREDIT_COSTS["image-edit"]);
+    if (!creditCheck.hasEnoughCredits) {
+      return NextResponse.json(
+        { error: "Insufficient credits", required: CREDIT_COSTS["image-edit"], current: creditCheck.currentCredits },
+        { status: 402 }
+      );
     }
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -73,11 +90,25 @@ export async function POST(request: NextRequest) {
             const anyPart = part as any;
             if (anyPart.inlineData) {
               const editedImage = `data:${anyPart.inlineData.mimeType};base64,${anyPart.inlineData.data}`;
+
+              // Deduct credits after successful edit
+              const deductResult = await deductCredits(
+                session.user.id,
+                CREDIT_COSTS["image-edit"],
+                "image-editing",
+                `Edited image: ${editPrompt.substring(0, 50)}...`
+              );
+
+              if (!deductResult.success && !deductResult.isAdmin) {
+                console.error("Failed to deduct credits:", deductResult.error);
+              }
+
               return NextResponse.json({
                 editedImage,
                 prompt: editPrompt,
                 editType,
-                creditsUsed: 800,
+                creditsUsed: CREDIT_COSTS["image-edit"],
+                newBalance: deductResult.newBalance,
               });
             }
           }
@@ -125,11 +156,25 @@ export async function POST(request: NextRequest) {
               const anyPart = part as any;
               if (anyPart.inlineData) {
                 const editedImage = `data:${anyPart.inlineData.mimeType};base64,${anyPart.inlineData.data}`;
+
+                // Deduct credits for fallback generation
+                const deductResult = await deductCredits(
+                  session.user.id,
+                  CREDIT_COSTS["image-edit"],
+                  "image-editing",
+                  `Edited image (fallback): ${editPrompt.substring(0, 50)}...`
+                );
+
+                if (!deductResult.success && !deductResult.isAdmin) {
+                  console.error("Failed to deduct credits:", deductResult.error);
+                }
+
                 return NextResponse.json({
                   editedImage,
                   prompt: editPrompt,
                   editType,
-                  creditsUsed: 800,
+                  creditsUsed: CREDIT_COSTS["image-edit"],
+                  newBalance: deductResult.newBalance,
                   note: "Generated as new image based on edit description",
                 });
               }

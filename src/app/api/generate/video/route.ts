@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { checkCredits, deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 export const maxDuration = 300; // 5 minutes for video generation
 
@@ -110,10 +113,32 @@ async function waitForCompletion(
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { prompt, duration = 8, aspectRatio = "16:9", mode = "text-to-video", imageData } = await request.json();
 
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
+    }
+
+    // Calculate credits based on duration
+    const creditCosts: Record<number, number> = {
+      5: CREDIT_COSTS["video-generate-5s"],
+      6: CREDIT_COSTS["video-generate-6s"],
+      8: CREDIT_COSTS["video-generate-8s"],
+    };
+    const requiredCredits = creditCosts[duration] || CREDIT_COSTS["video-generate-8s"];
+
+    // Check credits before processing
+    const creditCheck = await checkCredits(session.user.id, requiredCredits);
+    if (!creditCheck.hasEnoughCredits) {
+      return NextResponse.json(
+        { error: "Insufficient credits", required: requiredCredits, current: creditCheck.currentCredits },
+        { status: 402 }
+      );
     }
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -123,14 +148,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    // Calculate credits based on duration
-    const creditCosts: Record<number, number> = {
-      4: 3000,
-      8: 6000,
-      16: 12000,
-    };
-    const creditsUsed = creditCosts[duration] || 6000;
 
     // Map aspect ratio to Veo format
     const aspectRatioMap: Record<string, string> = {
@@ -170,12 +187,25 @@ export async function POST(request: NextRequest) {
       if (samples && samples.length > 0 && samples[0].video?.uri) {
         const videoUri = samples[0].video.uri;
 
+        // Deduct credits after successful generation
+        const deductResult = await deductCredits(
+          session.user.id,
+          requiredCredits,
+          "video-generation",
+          `Generated ${veoDuration}s video: ${prompt.substring(0, 50)}...`
+        );
+
+        if (!deductResult.success && !deductResult.isAdmin) {
+          console.error("Failed to deduct credits:", deductResult.error);
+        }
+
         return NextResponse.json({
           videoUrl: videoUri,
           prompt,
           duration: veoDuration,
           aspectRatio: veoAspectRatio,
-          creditsUsed,
+          creditsUsed: requiredCredits,
+          newBalance: deductResult.newBalance,
           status: "completed",
         });
       }

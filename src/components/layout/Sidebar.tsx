@@ -238,7 +238,8 @@ export function Sidebar() {
 
       {/* Bottom Section */}
       <div className="p-3 border-t border-white/5 space-y-1">
-        <button
+        <Link
+          href="/account"
           className={cn(
             "sidebar-item w-full",
             !sidebarOpen && "justify-center px-3"
@@ -256,8 +257,9 @@ export function Sidebar() {
               </motion.span>
             )}
           </AnimatePresence>
-        </button>
-        <button
+        </Link>
+        <Link
+          href="/pricing"
           className={cn(
             "sidebar-item w-full",
             !sidebarOpen && "justify-center px-3"
@@ -271,11 +273,11 @@ export function Sidebar() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                Help & Support
+                Upgrade Plan
               </motion.span>
             )}
           </AnimatePresence>
-        </button>
+        </Link>
       </div>
     </motion.aside>
   );

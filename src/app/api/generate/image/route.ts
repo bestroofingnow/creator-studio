@@ -1,12 +1,32 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { checkCredits, deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { prompt, aspectRatio = "1:1", style, numberOfImages = 4 } = await request.json();
 
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
+    }
+
+    // Calculate required credits based on number of images
+    const requiredCredits = CREDIT_COSTS["image-generate"] * numberOfImages;
+
+    // Check credits before processing
+    const creditCheck = await checkCredits(session.user.id, requiredCredits);
+    if (!creditCheck.hasEnoughCredits) {
+      return NextResponse.json(
+        { error: "Insufficient credits", required: requiredCredits, current: creditCheck.currentCredits },
+        { status: 402 }
+      );
     }
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -111,11 +131,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Calculate actual credits used based on images generated
+    const creditsUsed = images.length * CREDIT_COSTS["image-generate"];
+
+    // Deduct credits after successful generation
+    const deductResult = await deductCredits(
+      session.user.id,
+      creditsUsed,
+      "image-generation",
+      `Generated ${images.length} image(s): ${prompt.substring(0, 50)}...`
+    );
+
+    if (!deductResult.success && !deductResult.isAdmin) {
+      console.error("Failed to deduct credits:", deductResult.error);
+    }
+
     return NextResponse.json({
       images,
       prompt: enhancedPrompt,
       aspectRatio,
-      creditsUsed: images.length * 600,
+      creditsUsed,
+      newBalance: deductResult.newBalance,
     });
   } catch (error) {
     console.error("Image generation error:", error);

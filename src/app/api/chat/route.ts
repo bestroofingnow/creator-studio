@@ -1,16 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { checkCredits, deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { message, history = [] } = await request.json();
 
     if (!message) {
       return NextResponse.json(
         { error: "Message is required" },
         { status: 400 }
+      );
+    }
+
+    // Check credits before processing
+    const creditCheck = await checkCredits(session.user.id, CREDIT_COSTS.chat);
+    if (!creditCheck.hasEnoughCredits) {
+      return NextResponse.json(
+        { error: "Insufficient credits", required: CREDIT_COSTS.chat, current: creditCheck.currentCredits },
+        { status: 402 }
       );
     }
 
@@ -55,16 +72,35 @@ Be friendly, professional, and creative. Format your responses with markdown whe
     const result = await chat.sendMessage(message);
     const response = result.response;
 
+    // Calculate actual credits used based on token usage
+    const creditsUsed = Math.max(
+      CREDIT_COSTS.chat,
+      Math.ceil(
+        ((response.usageMetadata?.promptTokenCount || 0) * 0.01) +
+        ((response.usageMetadata?.candidatesTokenCount || 0) * 0.03)
+      )
+    );
+
+    // Deduct credits after successful generation
+    const deductResult = await deductCredits(
+      session.user.id,
+      creditsUsed,
+      "chat",
+      `Chat message: ${message.substring(0, 50)}...`
+    );
+
+    if (!deductResult.success && !deductResult.isAdmin) {
+      console.error("Failed to deduct credits:", deductResult.error);
+    }
+
     return NextResponse.json({
       response: response.text(),
       usage: {
         inputTokens: response.usageMetadata?.promptTokenCount || 0,
         outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
       },
-      creditsUsed: Math.ceil(
-        ((response.usageMetadata?.promptTokenCount || 0) * 0.01) +
-        ((response.usageMetadata?.candidatesTokenCount || 0) * 0.03)
-      ),
+      creditsUsed,
+      newBalance: deductResult.newBalance,
     });
   } catch (error) {
     console.error("Chat API error:", error);

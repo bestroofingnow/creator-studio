@@ -1,12 +1,29 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { checkCredits, deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { query, searchType = "general" } = await request.json();
 
     if (!query) {
       return NextResponse.json({ error: "Query is required" }, { status: 400 });
+    }
+
+    // Check credits before processing
+    const creditCheck = await checkCredits(session.user.id, CREDIT_COSTS["web-search"]);
+    if (!creditCheck.hasEnoughCredits) {
+      return NextResponse.json(
+        { error: "Insufficient credits", required: CREDIT_COSTS["web-search"], current: creditCheck.currentCredits },
+        { status: 402 }
+      );
     }
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -66,15 +83,25 @@ export async function POST(request: NextRequest) {
     // Parse any structured search results from the response
     const structuredResults = parseSearchResults(searchResult);
 
+    // Deduct credits after successful search
+    const deductResult = await deductCredits(
+      session.user.id,
+      CREDIT_COSTS["web-search"],
+      "web-search",
+      `Web search: ${query.substring(0, 50)}...`
+    );
+
+    if (!deductResult.success && !deductResult.isAdmin) {
+      console.error("Failed to deduct credits:", deductResult.error);
+    }
+
     return NextResponse.json({
       query,
       summary: searchResult,
       sources: sources.length > 0 ? sources : structuredResults.sources,
       searchType,
-      creditsUsed: Math.ceil(
-        ((response.usageMetadata?.promptTokenCount || 0) * 0.01) +
-        ((response.usageMetadata?.candidatesTokenCount || 0) * 0.03)
-      ),
+      creditsUsed: CREDIT_COSTS["web-search"],
+      newBalance: deductResult.newBalance,
     });
   } catch (error) {
     console.error("Web search error:", error);
