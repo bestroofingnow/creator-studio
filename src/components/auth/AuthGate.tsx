@@ -88,7 +88,7 @@ export function AuthGate({ children, featureName = "this feature" }: AuthGatePro
 
           {/* CTA Buttons */}
           <div className="flex flex-col gap-3">
-            <Link href="/login?signup=true">
+            <Link href="/register">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -98,7 +98,7 @@ export function AuthGate({ children, featureName = "this feature" }: AuthGatePro
                 <ArrowRight size={18} />
               </motion.button>
             </Link>
-            <Link href="/login">
+            <Link href="/signin">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}

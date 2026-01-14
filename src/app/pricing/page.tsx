@@ -67,7 +67,7 @@ export default function PricingPage() {
 
   const handleSubscribe = async (tier: string) => {
     if (status === "unauthenticated") {
-      router.push(`/login?callbackUrl=/pricing`);
+      router.push(`/signin?callbackUrl=/pricing`);
       return;
     }
 
@@ -110,7 +110,7 @@ export default function PricingPage() {
               Account
             </Link>
           ) : (
-            <Link href="/login" className="btn-primary text-sm">
+            <Link href="/signin" className="btn-primary text-sm">
               Sign In
             </Link>
           )}

@@ -1,7 +1,112 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 300; // 5 minutes for video generation
+
+const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+interface VeoOperation {
+  name: string;
+  done?: boolean;
+  error?: { message: string; code: number };
+  response?: {
+    generatedSamples?: Array<{
+      video?: {
+        uri?: string;
+        encoding?: string;
+      };
+    }>;
+  };
+}
+
+async function startVideoGeneration(
+  apiKey: string,
+  prompt: string,
+  aspectRatio: string,
+  duration: number,
+  mode: string,
+  imageData?: string
+): Promise<VeoOperation> {
+  const model = "veo-2.0-generate-001";
+  const url = `${API_BASE}/models/${model}:predictLongRunning?key=${apiKey}`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const requestBody: any = {
+    instances: [
+      {
+        prompt: prompt,
+      },
+    ],
+    parameters: {
+      aspectRatio: aspectRatio,
+      durationSeconds: duration,
+      personGeneration: "allow_adult",
+      sampleCount: 1,
+    },
+  };
+
+  // Add image for image-to-video mode
+  if (mode === "image-to-video" && imageData) {
+    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+    requestBody.instances[0].image = {
+      bytesBase64Encoded: base64Data,
+    };
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Veo API error: ${response.status} - ${errorText}`);
+  }
+
+  return response.json();
+}
+
+async function pollOperation(apiKey: string, operationName: string): Promise<VeoOperation> {
+  const url = `${API_BASE}/${operationName}?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Operation poll error: ${response.status} - ${errorText}`);
+  }
+
+  return response.json();
+}
+
+async function waitForCompletion(
+  apiKey: string,
+  operationName: string,
+  maxWaitMs: number = 240000
+): Promise<VeoOperation> {
+  const startTime = Date.now();
+  const pollInterval = 5000; // Poll every 5 seconds
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const operation = await pollOperation(apiKey, operationName);
+
+    if (operation.done) {
+      return operation;
+    }
+
+    // Wait before next poll
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  throw new Error("Video generation timed out after 4 minutes");
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,8 +124,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-
     // Calculate credits based on duration
     const creditCosts: Record<number, number> = {
       4: 3000,
@@ -29,101 +132,94 @@ export async function POST(request: NextRequest) {
     };
     const creditsUsed = creditCosts[duration] || 6000;
 
-    // Try using Veo model for video generation
+    // Map aspect ratio to Veo format
+    const aspectRatioMap: Record<string, string> = {
+      "16:9": "16:9",
+      "9:16": "9:16",
+      "1:1": "1:1",
+    };
+    const veoAspectRatio = aspectRatioMap[aspectRatio] || "16:9";
+
+    // Map duration to Veo-supported values (5-8 seconds)
+    const veoDuration = Math.min(Math.max(duration, 5), 8);
+
     try {
-      const model = genAI.getGenerativeModel({
-        model: "veo-3.0-generate-preview", // Veo 3 Pro model
-      });
+      console.log("Starting Veo video generation...", { prompt, aspectRatio: veoAspectRatio, duration: veoDuration, mode });
 
-      let result;
+      // Start the video generation
+      const operation = await startVideoGeneration(
+        apiKey,
+        prompt,
+        veoAspectRatio,
+        veoDuration,
+        mode,
+        imageData
+      );
 
-      if (mode === "image-to-video" && imageData) {
-        // Image-to-video animation
-        result = await model.generateContent({
-          contents: [{
-            role: "user",
-            parts: [
-              {
-                inlineData: {
-                  mimeType: "image/png",
-                  data: imageData.replace(/^data:image\/\w+;base64,/, ""),
-                },
-              },
-              { text: `Animate this image: ${prompt}. Duration: ${duration} seconds.` },
-            ],
-          }],
-          generationConfig: {
-            // @ts-expect-error - Veo specific config
-            responseModalities: ["video"],
-            videoDuration: duration,
-          },
-        });
-      } else {
-        // Text-to-video
-        result = await model.generateContent({
-          contents: [{
-            role: "user",
-            parts: [{ text: `Create a ${duration} second video: ${prompt}` }],
-          }],
-          generationConfig: {
-            // @ts-expect-error - Veo specific config
-            responseModalities: ["video"],
-            videoDuration: duration,
-            aspectRatio: aspectRatio,
-          },
-        });
+      console.log("Operation started:", operation.name);
+
+      // Wait for completion
+      const completedOperation = await waitForCompletion(apiKey, operation.name);
+
+      if (completedOperation.error) {
+        throw new Error(completedOperation.error.message);
       }
 
-      const response = result.response;
+      // Extract video URL from response
+      const samples = completedOperation.response?.generatedSamples;
+      if (samples && samples.length > 0 && samples[0].video?.uri) {
+        const videoUri = samples[0].video.uri;
 
-      // Extract video data from response
-      if (response.candidates && response.candidates[0]) {
-        const parts = response.candidates[0].content?.parts;
-        if (parts) {
-          for (const part of parts) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const anyPart = part as any;
-            if (anyPart.inlineData && anyPart.inlineData.mimeType?.startsWith("video/")) {
-              const videoData = `data:${anyPart.inlineData.mimeType};base64,${anyPart.inlineData.data}`;
-              return NextResponse.json({
-                videoUrl: videoData,
-                prompt,
-                duration,
-                aspectRatio,
-                creditsUsed,
-                status: "completed",
-              });
-            }
-            if (anyPart.fileData && anyPart.fileData.fileUri) {
-              return NextResponse.json({
-                videoUrl: anyPart.fileData.fileUri,
-                prompt,
-                duration,
-                aspectRatio,
-                creditsUsed,
-                status: "completed",
-              });
-            }
-          }
-        }
+        return NextResponse.json({
+          videoUrl: videoUri,
+          prompt,
+          duration: veoDuration,
+          aspectRatio: veoAspectRatio,
+          creditsUsed,
+          status: "completed",
+        });
       }
 
       return NextResponse.json(
         {
-          error: "Video generation did not return a video. The Veo model may not be available for your API key.",
-          details: "Please ensure your Google AI API key has access to Veo models."
+          error: "Video generation completed but no video was returned",
+          details: "The Veo model did not return a video. This may be due to content filtering.",
         },
         { status: 500 }
       );
     } catch (veoError) {
-      console.error("Veo 3 Pro generation error:", veoError);
+      console.error("Veo generation error:", veoError);
 
-      // Return helpful error message
+      const errorMessage = veoError instanceof Error ? veoError.message : String(veoError);
+
+      // Check for specific error types
+      if (errorMessage.includes("404") || errorMessage.includes("not found")) {
+        return NextResponse.json(
+          {
+            error: "Veo model not available",
+            details: "The Veo 2 model may not be enabled for your API key. Enable it in Google AI Studio.",
+            suggestion: "Go to Google AI Studio and ensure Veo 2 is enabled for your project.",
+          },
+          { status: 500 }
+        );
+      }
+
+      if (errorMessage.includes("403") || errorMessage.includes("permission")) {
+        return NextResponse.json(
+          {
+            error: "Permission denied",
+            details: "Your API key doesn't have permission to use Veo. Check your API key permissions.",
+            suggestion: "Create a new API key with Veo access in Google AI Studio.",
+          },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json(
         {
           error: "Video generation failed",
-          details: veoError instanceof Error ? veoError.message : "Veo 3 Pro model may not be available. Please check your API access.",
-          suggestion: "Video generation requires access to Google's Veo 3 Pro model. Make sure your API key has the necessary permissions."
+          details: errorMessage,
+          suggestion: "Check that your Google AI API key has Veo 2 access enabled.",
         },
         { status: 500 }
       );

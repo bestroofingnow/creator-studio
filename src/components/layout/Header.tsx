@@ -35,7 +35,7 @@ const toolDescriptions: Record<Tool, string> = {
   "image-generate": "Create stunning images with Nano Banana Pro",
   "image-edit": "Edit and transform images with AI",
   "image-analyze": "Extract insights and understand image content",
-  "video-generate": "Generate videos with Veo 3 Pro",
+  "video-generate": "Generate videos with Veo 2",
   "video-analyze": "Analyze and understand video content",
   "audio-transcribe": "Convert speech to text with high accuracy",
   "speech-generate": "Convert text to natural-sounding speech",
@@ -215,7 +215,7 @@ export function Header() {
             </div>
           </>
         ) : (
-          <Link href="/login">
+          <Link href="/signin">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

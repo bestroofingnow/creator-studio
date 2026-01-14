@@ -42,7 +42,7 @@ function AccountContent() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login?callbackUrl=/account");
+      router.push("/signin?callbackUrl=/account");
     }
   }, [status, router]);
 
@@ -106,7 +106,7 @@ function AccountContent() {
       {/* Header */}
       <header className="border-b border-white/5">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-[var(--foreground-muted)] hover:text-white">
+          <Link href="/dashboard" className="flex items-center gap-2 text-[var(--foreground-muted)] hover:text-white">
             <ArrowLeft className="w-5 h-5" />
             <span>Back to Studio</span>
           </Link>

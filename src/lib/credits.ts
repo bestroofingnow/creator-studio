@@ -199,9 +199,9 @@ export const CREDIT_COSTS = {
   "image-generate": 600,
   "image-edit": 600,
   "image-analyze": 100,
-  "video-generate-4s": 3000,
+  "video-generate-5s": 3000,
+  "video-generate-6s": 4000,
   "video-generate-8s": 6000,
-  "video-generate-16s": 12000,
   "video-analyze": 500,
   "audio-transcribe": 300, // Per minute
   "speech-generate": 120, // Per 1K characters

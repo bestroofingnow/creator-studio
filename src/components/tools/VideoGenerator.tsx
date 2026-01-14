@@ -19,9 +19,9 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
 
 const durations = [
-  { label: "4s", value: 4, credits: 3000 },
+  { label: "5s", value: 5, credits: 3000 },
+  { label: "6s", value: 6, credits: 4000 },
   { label: "8s", value: 8, credits: 6000 },
-  { label: "16s", value: 16, credits: 12000 },
 ];
 
 const modes = [
@@ -324,11 +324,11 @@ export function VideoGenerator() {
           <div className="p-4 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-2 h-2 rounded-full bg-[var(--neon-purple)] animate-pulse" />
-              <span className="text-sm font-medium">Veo 3 Pro</span>
+              <span className="text-sm font-medium">Veo 2</span>
             </div>
             <p className="text-xs text-[var(--foreground-muted)]">
-              Google&apos;s latest video generation model. Creates
-              high-quality, cinematic videos from text or images.
+              Google&apos;s video generation model. Creates
+              high-quality, cinematic videos from text or images (5-8 seconds).
             </p>
           </div>
         </div>
@@ -391,7 +391,7 @@ export function VideoGenerator() {
 
             <h3 className="text-xl font-semibold mb-2">Generating your video</h3>
             <p className="text-[var(--foreground-muted)] mb-6 text-center max-w-md">
-              This may take a minute. Veo 3 Pro is creating your {duration}-second
+              This may take 1-2 minutes. Veo 2 is creating your {duration}-second
               video...
             </p>
 
@@ -499,7 +499,7 @@ export function VideoGenerator() {
               <div>
                 <h3 className="text-lg font-semibold">Generated Video</h3>
                 <p className="text-sm text-[var(--foreground-muted)]">
-                  {duration}s | Veo 3 Pro | {prompt.length > 50 ? `${prompt.slice(0, 50)}...` : prompt}
+                  {duration}s | Veo 2 | {prompt.length > 50 ? `${prompt.slice(0, 50)}...` : prompt}
                 </p>
               </div>
               <div className="flex gap-2">

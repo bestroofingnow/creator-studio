@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import {
   MessageSquare,
   Image,
@@ -61,7 +62,7 @@ const tools: NavItem[] = [
     id: "video-generate",
     label: "Video Generation",
     icon: <Video size={20} />,
-    description: "Create with Veo 3.1",
+    description: "Create with Veo 2",
     credits: "6,000",
   },
   {
@@ -106,7 +107,7 @@ export function Sidebar() {
       className="sidebar h-screen flex flex-col z-50"
     >
       {/* Logo */}
-      <div className="p-4 flex items-center gap-3 border-b border-white/5">
+      <Link href="/" className="p-4 flex items-center gap-3 border-b border-white/5 hover:bg-white/5 transition-colors">
         <motion.div
           className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-purple)] flex items-center justify-center neon-glow"
           whileHover={{ scale: 1.05 }}
@@ -129,7 +130,7 @@ export function Sidebar() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </Link>
 
       {/* Toggle Button */}
       <button

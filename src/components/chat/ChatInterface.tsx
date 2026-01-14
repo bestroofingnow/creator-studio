@@ -212,7 +212,7 @@ export function ChatInterface() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-[var(--neon-purple)] animate-pulse" />
-                <span>Veo 3.1</span>
+                <span>Veo 2</span>
               </div>
             </motion.div>
           </motion.div>
