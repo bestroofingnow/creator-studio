@@ -14,6 +14,7 @@ import {
   LogOut,
   Settings,
   CreditCard,
+  Shield,
 } from "lucide-react";
 import { cn, formatCredits } from "@/lib/utils";
 import { useAppStore, type Tool } from "@/store";
@@ -183,6 +184,17 @@ export function Header() {
                         {session.user?.email}
                       </p>
                     </div>
+
+                    {(session.user as any)?.isAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-cyan-400"
+                      >
+                        <Shield size={16} />
+                        <span>Admin Dashboard</span>
+                      </Link>
+                    )}
 
                     <Link
                       href="/account"

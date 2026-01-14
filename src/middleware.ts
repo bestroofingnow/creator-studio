@@ -14,6 +14,7 @@ const protectedApiRoutes = [
   "/api/user",
   "/api/stripe/checkout",
   "/api/stripe/portal",
+  "/api/admin",
 ];
 
 // Public routes that don't require authentication
@@ -31,6 +32,7 @@ const publicRoutes = [
 const protectedPageRoutes = [
   "/dashboard",
   "/account",
+  "/admin",
 ];
 
 export async function middleware(req: NextRequest) {
@@ -83,5 +85,6 @@ export const config = {
     "/api/:path*",
     "/dashboard/:path*",
     "/account/:path*",
+    "/admin/:path*",
   ],
 };
